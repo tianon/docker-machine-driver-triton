@@ -21,11 +21,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codegangsta/cli"
-	"github.com/docker/machine/drivers"
-	"github.com/docker/machine/log"
-	"github.com/docker/machine/state"
-	"github.com/docker/machine/utils"
+	"github.com/docker/machine/libmachine/drivers"
+	"github.com/docker/machine/libmachine/log"
+	"github.com/docker/machine/libmachine/state"
+	"github.com/docker/machine/libmachine/mcnutils"
+	"github.com/docker/machine/libmachine/mcnflag"
 )
 
 const (
@@ -34,51 +34,45 @@ const (
 	TritonDefaultCloudapiDomain = "api.joyent.com"
 )
 
+var CreateHack = false
+
 type Driver struct {
+	*drivers.BaseDriver
 	CloudApiURL   string
 	DockerApiURL  string
 	DataCenter    string
 	Account       string
 	PrivateKey    string
 	SkipTlsVerify bool
-	MachineName   string
-	storePath     string
 }
 
-func init() {
-	drivers.Register(driverName, &drivers.RegisteredDriver{
-		New:            NewDriver,
-		GetCreateFlags: GetCreateFlags,
-	})
-}
-
-func GetCreateFlags() []cli.Flag {
-	return []cli.Flag{
-		cli.StringFlag{
+func (d *Driver) GetCreateFlags() []mcnflag.Flag {
+	return []mcnflag.Flag{
+		mcnflag.StringFlag{
 			Name:   "triton-url",
 			Usage:  "Triton cloudapi URL",
 			Value:  "",
 			EnvVar: "SDC_URL",
 		},
-		cli.StringFlag{
+		mcnflag.StringFlag{
 			Name:   "triton-datacenter",
 			Usage:  "Triton datacenter name",
 			Value:  "us-east-1",
 			EnvVar: "SDC_DC",
 		},
-		cli.StringFlag{
+		mcnflag.StringFlag{
 			Name:   "triton-account",
 			Usage:  "Triton account name",
 			Value:  "",
 			EnvVar: "SDC_ACCOUNT",
 		},
-		cli.StringFlag{
+		mcnflag.StringFlag{
 			Name:   "triton-key",
 			Usage:  "SSH private key for Triton authentication",
 			Value:  "",
 			EnvVar: "SDC_KEY",
 		},
-		cli.BoolFlag{
+		mcnflag.BoolFlag{
 			Name:   "triton-skip-tls-verify",
 			Usage:  "Skip tls verification 'true' or 'false' (defaults to 'false')",
 			EnvVar: "SDC_SKIP_TLS_VERIFY",
@@ -86,11 +80,13 @@ func GetCreateFlags() []cli.Flag {
 	}
 }
 
-func NewDriver(machineName string, storePath string, caCert string, privateKey string) (drivers.Driver, error) {
-	return &Driver{
-		MachineName: machineName,
-		storePath:   storePath,
-	}, nil
+func NewDriver(machineName string, storePath string) Driver {
+	return Driver{
+		BaseDriver: &drivers.BaseDriver{
+			MachineName: machineName,
+			StorePath:   storePath,
+		},
+	}
 }
 
 /* --------------------------------------------------------- */
@@ -98,12 +94,14 @@ func NewDriver(machineName string, storePath string, caCert string, privateKey s
 /* --------------------------------------------------------- */
 
 // AuthorizePort authorizes a port for machine access
-func (d *Driver) AuthorizePort(ports []*drivers.Port) error {
-	return nil
-}
+//func (d *Driver) AuthorizePort(ports []*drivers.Port) error {
+//	return nil
+//}
 
 // Create a host using the driver's config
 func (d *Driver) Create() error {
+	CreateHack = true
+
 	log.Infof("Generating %s user certificates - you will be prompted for", driverName)
 	log.Infof("your SSH private key password (if it's password protected).")
 
@@ -123,23 +121,20 @@ func (d *Driver) Create() error {
 }
 
 // DeauthorizePort removes a port for machine access
-func (d *Driver) DeauthorizePort(ports []*drivers.Port) error {
-	return nil
-}
+//func (d *Driver) DeauthorizePort(ports []*drivers.Port) error {
+//	return nil
+//}
 
 // DriverName returns the name of the driver as it is registered
 func (d *Driver) DriverName() string {
-
 	/**
 	 * Overriding the driver name to avoid SSH provisioning - issue #886
 	 *
 	 * We only need override the driver name in the 'create' step, so this
 	 * approximately checks if this is a create.
 	 */
-	for _, v := range os.Args {
-		if v == "create" {
-			return "none"
-		}
+	if CreateHack {
+		return "none"
 	}
 
 	return driverName
@@ -178,7 +173,7 @@ func (d *Driver) GetSSHUsername() string {
 
 // GetSSHKeyPath returns key path for use with ssh
 func (d *Driver) GetSSHKeyPath() string {
-	return path.Join(d.storePath, "id_rsa")
+	return d.PrivateKey
 }
 
 // GetURL returns a Docker compatible host URL for connecting to this host
@@ -241,7 +236,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 
 	if d.CloudApiURL == "" {
 		if d.DataCenter == "" {
-			log.Fatal("You must specify a cloudapi url or datacenter name")
+			return fmt.Errorf("You must specify a cloudapi url or datacenter name")
 		}
 		// Shortend format for the cloudapi name, e.g. "us-east-1"
 		d.CloudApiURL = fmt.Sprintf("https://%s.%s", d.DataCenter, TritonDefaultCloudapiDomain)
@@ -252,7 +247,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	}
 
 	if d.PrivateKey == "" {
-		homedir := utils.GetHomeDir()
+		homedir := mcnutils.GetHomeDir()
 		if homedir == "" {
 			return fmt.Errorf("You must specify the SSH key using --triton-key")
 		}
@@ -313,9 +308,11 @@ func (d *Driver) DownloadCa() error {
 	}
 	defer resp.Body.Close()
 
-	caFile := path.Join(utils.GetMachineDir(), d.MachineName, "ca.pem")
+	caFile := d.ResolveStorePath("ca.pem")
+	log.Debugf("CA: %s", caFile)
 	out, err := os.Create(caFile)
 	if err != nil {
+		log.Debugf("Unable to create ca.pm: %s", caFile)
 		return err
 	}
 	defer out.Close()
@@ -337,7 +334,8 @@ func RunCommand(cmd []string, stdin string) (string, string, error) {
 	if stdin != "" {
 		stdinPipe, err = subProcess.StdinPipe()
 		if err != nil {
-			log.Fatal("runCommand subProcess.StdinPipe failed")
+			log.Debugf("runCommand subProcess.StdinPipe failed")
+			return "", "", err
 		}
 	}
 
@@ -363,6 +361,7 @@ func RunCommand(cmd []string, stdin string) (string, string, error) {
 
 	if err != nil {
 		log.Debugf("runCommand subProcess.Wait failed")
+		return "", "", err
 	}
 
 	if stderr != "" {
@@ -417,22 +416,22 @@ func (d *Driver) MakeCloudApiRequest(now string, encDateString string, sshKeyId 
 	json.Unmarshal([]byte(body), &respMap)
 
 	if resp.StatusCode == http.StatusForbidden { // 403
-		log.Fatalf("ERROR: CloudAPI registration was forbidden: %s", respMap["message"])
+		return fmt.Errorf("ERROR: CloudAPI registration was forbidden: %s", respMap["message"])
 	}
 
 	if resp.StatusCode != http.StatusOK { // 200
-		log.Fatalf("ERROR: CloudAPI registration failed: %s", respMap["message"])
+		return fmt.Errorf("ERROR: CloudAPI registration failed: %s", respMap["message"])
 	}
 
 	dockerUrl, ok := respMap["docker"].(string)
 	if !ok {
-		log.Fatalf("Could not convert docker response url to string, respMap %s", respMap)
+		return fmt.Errorf("Could not convert docker response url to string, respMap %s", respMap)
 	}
 
 	// Sanity check the url.
 	_, err = url.Parse(dockerUrl)
 	if err != nil {
-		log.Fatalf("Cloudapi returned an invalid url: %s - %s", dockerUrl, err)
+		return fmt.Errorf("Cloudapi returned an invalid url: %s - %s", dockerUrl, err)
 	}
 
 	d.DockerApiURL = dockerUrl
@@ -462,7 +461,7 @@ func (d *Driver) RegisterWithSdcCloudApi() error {
 	}
 
 	//ssh-keygen -l -f "$sshPubKeyPath" | awk '{print $2}' | tr -d '\n';
-	cmd = []string{"ssh-keygen", "-l", "-f", d.PrivateKey + ".pub"}
+	cmd = []string{"ssh-keygen", "-E", "md5", "-l", "-f", d.PrivateKey + ".pub"}
 	stdout, _, err = RunCommand(cmd, "")
 	if err != nil {
 		log.Debugf("command %s failed %s", cmd, err)
@@ -474,6 +473,12 @@ func (d *Driver) RegisterWithSdcCloudApi() error {
 		return err
 	}
 	sshKeyId := sshKeyIdSplit[1]
+
+	sshKeyIdSplit = strings.SplitN(sshKeyId, ":", 2)
+	if sshKeyIdSplit[0] != "MD5" {
+		return fmt.Errorf("invalid ssh key output: %s", sshKeyId)
+	}
+	sshKeyId = sshKeyIdSplit[1]
 
 	// Register this user/key with the SDC cloud API.
 	err = d.MakeCloudApiRequest(now, encDateString, sshKeyId)
@@ -497,9 +502,9 @@ func (d *Driver) GenerateCertificates() error {
 		return err
 	}
 
-	var keyFile = path.Join(utils.GetMachineDir(), d.MachineName, "key.pem")
-	var csrFile = path.Join(utils.GetMachineDir(), d.MachineName, "cert.csr")
-	var certFile = path.Join(utils.GetMachineDir(), d.MachineName, "cert.pem")
+	var keyFile = d.ResolveStorePath("key.pem")
+	var csrFile = d.ResolveStorePath("cert.csr")
+	var certFile = d.ResolveStorePath("cert.pem")
 
 	cmd := exec.Command("openssl", "rsa", "-in", d.PrivateKey, "-outform", "pem", "-out", keyFile)
 	err = cmd.Run()
@@ -555,8 +560,8 @@ func (d *Driver) GenerateCertificates() error {
 
 	log.Debugf("writing server certificates")
 
-	var serverKeyFile = path.Join(utils.GetMachineDir(), d.MachineName, "server-key.pem")
-	var serverCertFile = path.Join(utils.GetMachineDir(), d.MachineName, "server.pem")
+	var serverKeyFile = d.ResolveStorePath("server-key.pem")
+	var serverCertFile = d.ResolveStorePath("server.pem")
 
 	certOut, _ := os.OpenFile(serverCertFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {

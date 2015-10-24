@@ -1,0 +1,75 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/docker/docker/pkg/term",
+			"repository": "https://github.com/docker/docker",
+			"revision": "80439a4ce280777ded1b22842b7b6b3d4d6b574a",
+			"branch": "master",
+			"path": "/pkg/term"
+		},
+		{
+			"importpath": "github.com/docker/machine/commands/mcndirs",
+			"repository": "https://github.com/docker/machine",
+			"revision": "a1e610bdd31c307a06a46d7ff6abf2c4b37ade34",
+			"branch": "HEAD",
+			"path": "/commands/mcndirs"
+		},
+		{
+			"importpath": "github.com/docker/machine/drivers/none",
+			"repository": "https://github.com/docker/machine",
+			"revision": "e421a07336c65fe28177b8a6a2c979c2f66f4d8c",
+			"branch": "master",
+			"path": "/drivers/none"
+		},
+		{
+			"importpath": "github.com/docker/machine/libmachine",
+			"repository": "https://github.com/docker/machine",
+			"revision": "e421a07336c65fe28177b8a6a2c979c2f66f4d8c",
+			"branch": "master",
+			"path": "/libmachine"
+		},
+		{
+			"importpath": "github.com/docker/machine/libmachine/drivers",
+			"repository": "https://github.com/docker/machine",
+			"revision": "a1e610bdd31c307a06a46d7ff6abf2c4b37ade34",
+			"branch": "HEAD",
+			"path": "/libmachine/drivers"
+		},
+		{
+			"importpath": "github.com/docker/machine/libmachine/log",
+			"repository": "https://github.com/docker/machine",
+			"revision": "e421a07336c65fe28177b8a6a2c979c2f66f4d8c",
+			"branch": "master",
+			"path": "/libmachine/log"
+		},
+		{
+			"importpath": "github.com/docker/machine/libmachine/mcnflag",
+			"repository": "https://github.com/docker/machine",
+			"revision": "a1e610bdd31c307a06a46d7ff6abf2c4b37ade34",
+			"branch": "HEAD",
+			"path": "/libmachine/mcnflag"
+		},
+		{
+			"importpath": "github.com/docker/machine/libmachine/mcnutils",
+			"repository": "https://github.com/docker/machine",
+			"revision": "e421a07336c65fe28177b8a6a2c979c2f66f4d8c",
+			"branch": "master",
+			"path": "/libmachine/mcnutils"
+		},
+		{
+			"importpath": "golang.org/x/crypto/curve25519",
+			"repository": "https://go.googlesource.com/crypto",
+			"revision": "c8b9e6388ef638d5a8a9d865c634befdc46a6784",
+			"branch": "master",
+			"path": "/curve25519"
+		},
+		{
+			"importpath": "golang.org/x/crypto/ssh",
+			"repository": "https://go.googlesource.com/crypto",
+			"revision": "c8b9e6388ef638d5a8a9d865c634befdc46a6784",
+			"branch": "master",
+			"path": "/ssh"
+		}
+	]
+}
